@@ -33,11 +33,13 @@ var (
 )
 
 // roomPartRE matches one half (code or password) of a "<code>:<password>"
-// room reference: lowercase alphanumeric. The service hands out a 6-char
-// code and an 8-char password; {4,16} leaves headroom without weakening the
-// check that actually matters here (no colons, no whitespace, no case
-// confusion in a value that is compared byte-for-byte downstream).
-var roomPartRE = regexp.MustCompile(`^[a-z0-9]{4,16}$`)
+// room reference: alphanumeric. Rooms created through the API get a 6-char
+// code and an 8-char lowercase password, but rooms created in the web UI
+// carry a longer mixed-case password (e.g. the "?psw=" value), so the class
+// allows both cases and up to 64 chars. What actually matters is that the
+// value can never contain a colon, whitespace or shell-hostile character: it
+// is compared byte-for-byte downstream and interpolated into a URL path.
+var roomPartRE = regexp.MustCompile(`^[A-Za-z0-9]{4,64}$`)
 
 // preconnectReply is the subset of the SaluteJazz /preconnect response this
 // provider needs.

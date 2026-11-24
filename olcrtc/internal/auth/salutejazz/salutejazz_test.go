@@ -40,7 +40,10 @@ func TestIssueRunsPreconnectAndReturnsConnectorCredentials(t *testing.T) {
 
 func TestIssueRejectsMalformedRoomReferences(t *testing.T) {
 	p := Provider{}
-	for _, bad := range []string{"", "any", "abc123", "abc123:", ":passw0rd", "abc:pass:extra", "ABC123:passw0rd"} {
+	// Mixed case is allowed now (web-UI rooms carry "?psw=" values), so the
+	// rejected shapes are the structural ones: missing colon, empty halves,
+	// an extra colon, a space or a shell-hostile character.
+	for _, bad := range []string{"", "any", "abc123", "abc123:", ":passw0rd", "abc:pass:extra", "abc123:pass word", "abc123:pw-1234"} {
 		if _, err := p.Issue(context.Background(), auth.Config{RoomURL: bad}); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
@@ -72,11 +75,11 @@ func TestCreateRoomReturnsCodeAndPassword(t *testing.T) {
 // several layers up (engineconn -> builtin -> Logf).
 func TestIssueErrorNeverContainsPassword(t *testing.T) {
 	p := Provider{}
-	_, err := p.Issue(context.Background(), auth.Config{RoomURL: "ABC123:passw0rd"})
+	_, err := p.Issue(context.Background(), auth.Config{RoomURL: "abc123:pw-1234"})
 	if err == nil {
-		t.Fatal("expected an error for an uppercase code")
+		t.Fatal("expected an error for a malformed password")
 	}
-	if strings.Contains(err.Error(), "passw0rd") {
+	if strings.Contains(err.Error(), "pw-1234") {
 		t.Fatalf("error leaked the password: %v", err)
 	}
 }
@@ -87,16 +90,16 @@ func TestIssueErrorNeverContainsPassword(t *testing.T) {
 // error must not echo the password either.
 func TestCreateRoomRejectsMalformedReply(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"roomId":"ZZZ999","password":"pw123456","url":"https://salutejazz.ru/ZZZ999?psw=x"}`))
+		_, _ = w.Write([]byte(`{"roomId":"zzz999","password":"pw-123456","url":"https://salutejazz.ru/zzz999?psw=x"}`))
 	}))
 	defer srv.Close()
 
 	p := Provider{apiBase: srv.URL}
 	room, err := p.CreateRoom(context.Background(), auth.Config{})
 	if err == nil {
-		t.Fatalf("expected an error for an uppercase roomId, got room %q", room)
+		t.Fatalf("expected an error for a malformed password, got room %q", room)
 	}
-	if strings.Contains(err.Error(), "pw123456") {
+	if strings.Contains(err.Error(), "pw-123456") {
 		t.Fatalf("error leaked the password: %v", err)
 	}
 }
